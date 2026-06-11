@@ -972,7 +972,7 @@ class TrainPage(QWidget):
         
         # 训练集比例
         self.train_split = NoWheelSlider(Qt.Orientation.Horizontal)
-        self.train_split.setRange(50, 95)
+        self.train_split.setRange(10, 95)
         self.train_split.setValue(80)
         self.train_split.valueChanged.connect(self.on_split_changed)
         self.train_label = QLabel("80%")
@@ -1022,7 +1022,7 @@ class TrainPage(QWidget):
         
         total = train + val + test
         if total != 100:
-            self.split_warning.setText(f"⚠️ 总和为 {total}%，应为 100%")
+            self.split_warning.setText(f"⚠️ 总和为 {total}%，建议为 100%")
         else:
             self.split_warning.setText("")
     
@@ -1524,9 +1524,12 @@ class TrainPage(QWidget):
         train = form_config['train_split']
         val = form_config['val_split']
         test = form_config['test_split']
-        if train + val + test != 100:
-            QMessageBox.warning(self, "配置错误", "数据集划分比例总和必须等于100%")
+        if(train==0):
+            QMessageBox.warning(self, "配置错误", "训练集比例必须大于0%")
             return
+        # if train + val + test != 100:
+        #     QMessageBox.warning(self, "配置错误", "数据集划分比例总和必须等于100%")
+        #     return
 
         config = self.build_training_runtime_config(form_config)
         if not config:

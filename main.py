@@ -23,7 +23,7 @@ def qt_message_handler(msg_type, context, message):
         return  # 忽略这个警告
     
     # 其他消息正常输出到stderr（Qt的默认行为）
-    if msg_type >= QtMsgType.QtWarningMsg:
+    if msg_type.value >= QtMsgType.QtWarningMsg.value:
         print(msg_str, file=sys.stderr)
 
 

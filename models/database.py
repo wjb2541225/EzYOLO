@@ -287,6 +287,17 @@ class Database:
                 )
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_images_by_name(self, project_id: int, name_query: str) -> List[Dict]:
+        """根据文件名查询图像"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM images 
+                WHERE project_id = ? AND (filename = ? OR original_path = ?)
+                ORDER BY created_at
+            """, (project_id, name_query, name_query))
+            return [dict(row) for row in cursor.fetchall()]
+
     def get_project_images_by_class(self, project_id: int, class_id: int) -> List[Dict]:
         """获取项目下包含指定类别的图像（按图片去重）"""
         with self.get_connection() as conn:

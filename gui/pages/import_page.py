@@ -23,7 +23,6 @@ from core.import_manager import ImportManager
 from core.annotation_importer import AnnotationImporter
 from gui.widgets.loading_dialog import LoadingOverlay
 
-
 # 视频导入线程
 class VideoImportThread(QThread):
     """视频导入后台线程"""
@@ -1412,9 +1411,11 @@ class ImportPage(QWidget):
         finally:
             self.progress_bar.setVisible(False)
     
+
     def update_import_progress(self, progress: int, message: str):
         """更新导入进度"""
-        self.progress_bar.setValue(progress)
+        if(self.progress_bar.value!=progress):
+            self.progress_bar.setValue(progress)
     
     def on_video_import_finished(self, success: bool, message: str, imported: int, skipped: int):
         """视频导入完成回调"""

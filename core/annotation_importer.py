@@ -9,9 +9,11 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 import os
-
+from datetime import datetime
+import shutil
 from models.database import db
-
+import traceback
+from PIL import Image
 
 class AnnotationImporter:
     """标注导入器"""
@@ -31,6 +33,13 @@ class AnnotationImporter:
         # 获取项目类别信息
         self.classes = json.loads(self.project['classes']) if self.project['classes'] else []
         self.class_map = {cls['name']: cls['id'] for cls in self.classes}
+
+        # 确保项目存储目录存在
+        self.storage_path = Path(self.project['storage_path'])
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+        # 创建images子目录
+        self.images_path = self.storage_path / "images"
+        self.images_path.mkdir(exist_ok=True)
     
     def import_yolo_annotations(self, labels_dir: str, images_dir: str = None, overwrite: bool = False) -> Tuple[int, int]:
         """
@@ -76,7 +85,7 @@ class AnnotationImporter:
                 image_record = self._find_image_record(str(image_file))
                 if not image_record:
                     # 如果图像不存在，先导入图像
-                    image_record = self._import_image_if_needed(str(image_file))
+                    image_record = self._import_image_if_needed(image_info, str(image_file))
                     if not image_record:
                         skipped += 1
                         continue
@@ -125,7 +134,8 @@ class AnnotationImporter:
                 imported += len(annotations)
                 
             except Exception as e:
-                print(f"导入YOLO标注失败 {txt_file}: {e}")
+                err_msg = traceback.format_exc()
+                print(f"导入YOLO标注失败 {txt_file}: {err_msg}")
                 skipped += 1
         
         return imported, skipped
@@ -514,27 +524,34 @@ class AnnotationImporter:
         
         return None
     
-    def _get_image_info(self, image_path: str) -> Optional[Dict]:
+    def _get_image_info(self, file_path: str) -> Optional[Dict]:
         """
         获取图像信息
         
         Args:
-            image_path: 图像文件路径
+            file_path: 图像文件路径
             
         Returns:
             图像信息字典，失败返回None
         """
         try:
-            from PIL import Image
-            with Image.open(image_path) as img:
+            # 使用PIL获取图像信息
+            with Image.open(file_path) as img:
                 width, height = img.size
-                return {
-                    'width': width,
-                    'height': height,
-                    'format': img.format.lower() if img.format else 'unknown'
-                }
+                image_format = img.format.lower() if img.format else 'unknown'
+            
+            # 获取文件大小
+            size = Path(file_path).stat().st_size
+            
+            return {
+                'width': width,
+                'height': height,
+                'size': size,
+                'format': image_format
+            }
+            
         except Exception as e:
-            print(f"获取图像信息失败 {image_path}: {e}")
+            print(f"获取图像信息失败 {file_path}: {e}")
             return None
     
     def _find_image_record(self, image_path: str) -> Optional[Dict]:
@@ -574,7 +591,7 @@ class AnnotationImporter:
         
         return None
     
-    def _import_image_if_needed(self, image_path: str) -> Optional[Dict]:
+    def _import_image_if_needed(self, image_info :Dict, image_path: str) -> Optional[Dict]:
         """
         如果需要，导入图像
         
@@ -586,8 +603,33 @@ class AnnotationImporter:
         """
         # 这里需要调用图像导入功能
         # TODO: 实现图像导入逻辑
-        return None
-    
+       # 生成目标文件名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        imagePath = Path(image_path)
+        target_filename = f"{timestamp}_{imagePath.name}"
+        target_path = self.images_path / target_filename
+                
+        # 复制文件到项目目录
+        shutil.copy2(image_path, str(target_path))
+        
+        # 添加到数据库
+        db.add_image(
+            project_id=self.project_id,
+            filename=imagePath.name,
+            storage_path=str(target_path),
+            width=image_info['width'],
+            height=image_info['height'],
+            size=image_info['size'],
+            image_format=image_info['format'],
+            original_path=image_path
+        )
+        
+        records= db.get_images_by_name(self.project_id, image_path)
+        if records and len(records) > 0:
+            return records[0]
+        else:
+            return None
+        
     def _get_class_name_by_id(self, class_id: int) -> str:
         """
         根据类别ID获取类别名称
